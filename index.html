@@ -1,0 +1,625 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10152e">
+<title>Nova — Personal Voice Assistant</title>
+<style>
+:root {
+  color-scheme: dark;
+  --purple: #8978ff;
+  --panel: #10152e;
+  --text: #f5f5ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; padding: 24px 14px 40px;
+  display: flex; flex-direction: column; align-items: center;
+  color: var(--text); font-family: "Segoe UI", Arial, sans-serif;
+  background: radial-gradient(ellipse at top, #242766, #080b19 72%);
+}
+h1 { letter-spacing: 9px; color: #d0d4ff; margin-bottom: 4px; }
+.sub { color: #aeb8e9; margin-bottom: 12px; text-align: center; }
+#orb {
+  width: 145px; height: 145px; flex-shrink: 0; border-radius: 50%;
+  margin: 16px;
+  background: radial-gradient(circle at 32% 25%, white 0%, #bac5ff 10%,
+    #8170ff 29%, #6330bd 56%, #11183e 78%);
+  box-shadow: 0 0 32px #8170ff, 0 0 90px #5645ff55;
+  animation: float 3s ease-in-out infinite;
+  transition: box-shadow .2s;
+}
+#orb.listening {
+  box-shadow: 0 0 38px #56ffe3, 0 0 100px #37e8d877;
+}
+#orb.speaking { box-shadow: 0 0 45px #d68cff, 0 0 100px #a44cff88; }
+@keyframes float {
+  0%,100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-7px) scale(1.04); }
+}
+#status { text-align: center; color: #c4ceff; margin-bottom: 15px; }
+.panel {
+  width: min(100%, 680px); padding: 14px;
+  background: #0b1028e8; border: 1px solid #444b86;
+  border-radius: 18px; margin-top: 12px;
+}
+#chat { height: 270px; overflow-y: auto; }
+.msg {
+  padding: 11px 13px; border-radius: 13px; margin: 8px 0;
+  line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.nova { background: #202750; border: 1px solid #414a85; }
+.user { background: #433282; margin-left: 22px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.row + .row { margin-top: 9px; }
+input, select, button {
+  font: inherit; padding: 11px 12px; border-radius: 11px;
+}
+input, select {
+  min-width: 0; background: #111735; color: white;
+  border: 1px solid #515991;
+}
+input[type="text"], input[type="url"] { flex: 1; width: 100%; }
+button {
+  color: white; cursor: pointer; border: 1px solid #8b80ff;
+  background: linear-gradient(135deg, #4640bb, #7836b9);
+}
+button:hover { filter: brightness(1.18); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid #d0caff; outline-offset: 2px;
+}
+#activateNova {
+  width: 100%; padding: 16px; font-size: 17px;
+  font-weight: 600; border-radius: 15px;
+  box-shadow: 0 0 22px #8170ff44;
+}
+.small { color: #b1bce8; font-size: 13px; line-height: 1.55; }
+label { font-size: 14px; }
+hr { border: 0; border-top: 1px solid #343b6b; margin: 14px 0; }
+</style>
+</head>
+<body>
+<h1>N O V A</h1>
+<div class="sub">Your personal voice assistant</div>
+
+<div id="orb" aria-hidden="true"></div>
+<div id="status" role="status" aria-live="polite">Nova is ready 💜</div>
+
+<section class="panel" aria-label="Conversation">
+  <div id="chat" aria-live="polite">
+    <div class="msg nova">Hello! I'm Nova. Tap Activate Nova & Listen, then say
+      “Hey Nova, what time is it?” You can also type a command below.
+    </div>
+  </div>
+  <form id="chatForm" class="row">
+    <input id="message" type="text" placeholder="Talk to Nova or type here..."
+      autocomplete="off" aria-label="Message">
+    <button type="submit">Send</button>
+  </form>
+</section>
+
+<section class="panel">
+  <button id="activateNova">✨ Activate Nova & Listen</button>
+  <div class="row">
+    <button id="listen">🎙️ Start Listening</button>
+    <button id="stop">⏹ Stop Listening</button>
+    <button id="chatgpt">💬 Open ChatGPT</button>
+  </div>
+  <div class="row">
+    <label for="voice">Voice</label>
+    <select id="voice" aria-label="Spoken voice">
+      <option value="">Default browser voice</option>
+    </select>
+    <button id="voiceToggle">🔊 Voice on</button>
+  </div>
+  <p class="small">
+    Tap Activate Nova & Listen whenever you open this page. Say “Hey Nova”
+    followed by your command. Browser restrictions mean Nova cannot always
+    start the microphone automatically when the page opens.
+  </p>
+</section>
+
+<section class="panel">
+  <strong>⏱️ Timers and reminders</strong>
+  <form id="timerForm" class="row">
+    <input id="minutes" type="number" min="1" max="1440"
+      placeholder="Minutes" aria-label="Timer duration" required>
+    <input id="timerLabel" type="text" placeholder="Timer name (optional)"
+      aria-label="Timer name">
+    <button type="submit">Start timer</button>
+  </form>
+  <div id="timers" class="small">No active timers.</div>
+</section>
+
+<section class="panel">
+  <strong>🧠 Optional secure AI connection</strong>
+  <p class="small">
+    Nova needs a secure server endpoint to receive real AI answers inside
+    this page. Leave this blank unless you have a trusted backend designed
+    for this purpose. Never paste an API key here.
+  </p>
+  <div class="row">
+    <input id="backend" type="url" placeholder="Optional HTTPS backend URL"
+      aria-label="Secure AI backend URL">
+    <button id="saveBackend">Set endpoint</button>
+  </div>
+  <div class="row">
+    <button id="askAI">Ask connected AI</button>
+  </div>
+  <p id="aiStatus" class="small">
+    No AI backend connected. Use Open ChatGPT for AI answers.
+  </p>
+</section>
+
+<section class="panel">
+  <strong>What Nova can do</strong>
+  <p class="small">
+    Say “Hey Nova, what time is it?”, “Hey Nova, what's today's date?”,
+    “Hey Nova, set a timer for 5 minutes”, “Hey Nova, open YouTube”,
+    “Hey Nova, open Google”, “Hey Nova, open ChatGPT”,
+    “Hey Nova, connect to my phone”, or “Hey Nova, stop listening”.
+  </p>
+  <hr>
+  <p class="small">
+    Browser limitations: Nova cannot freely control Windows settings,
+    launch arbitrary desktop applications, or access your private files.
+    Timers work only while this page remains open. Voice recognition may
+    send audio to your browser's speech provider. Microphone support and
+    wake phrase reliability vary by browser.
+  </p>
+</section>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const chat = $("chat");
+const orb = $("orb");
+const statusBox = $("status");
+const timersBox = $("timers");
+
+let recognition = null;
+let listening = false;
+let voiceEnabled = true;
+let pendingAction = null;
+let timerList = [];
+let nextTimerId = 1;
+let backendURL = "";
+let recognitionRestartAllowed = false;
+
+function addMessage(text, who = "nova") {
+  const div = document.createElement("div");
+  div.className = "msg " + who;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function say(text) {
+  addMessage(text, "nova");
+  if (!voiceEnabled || !("speechSynthesis" in window)) return;
+
+  speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  const voices = speechSynthesis.getVoices();
+  const selected = $("voice").value;
+
+  if (selected !== "" && voices[Number(selected)]) {
+    utterance.voice = voices[Number(selected)];
+  }
+
+  utterance.rate = 1;
+  utterance.pitch = 1.08;
+  utterance.onstart = () => orb.classList.add("speaking");
+  utterance.onend = () => orb.classList.remove("speaking");
+  utterance.onerror = () => orb.classList.remove("speaking");
+  speechSynthesis.speak(utterance);
+}
+
+
+function loadVoices() {
+  if (!("speechSynthesis" in window)) return;
+
+  const voices = speechSynthesis.getVoices();
+  const oldValue = $("voice").value;
+
+  $("voice").replaceChildren(
+    new Option("Default browser voice", "")
+  );
+
+  voices.forEach((v, i) => {
+    $("voice").appendChild(
+      new Option(v.name + " (" + v.lang + ")", String(i))
+    );
+  });
+
+  const preferred = voices.findIndex(v =>
+    /Microsoft Emma Multilingual Online.*Natural/i.test(v.name) &&
+    /^en-us$/i.test(v.lang)
+  );
+
+  if (oldValue !== "" && voices[Number(oldValue)]) {
+    $("voice").value = oldValue;
+  } else if (preferred >= 0) {
+    $("voice").value = String(preferred);
+  }
+}
+
+if ("speechSynthesis" in window) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}function askBeforeOpening(url, name) {
+  pendingAction = () => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  say("Would you like me to open " + name + "? Say yes or no.");
+}
+
+function renderTimers() {
+  if (!timerList.length) {
+    timersBox.textContent = "No active timers.";
+    return;
+  }
+
+  timersBox.replaceChildren();
+  timerList.forEach(timer => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const description = document.createElement("span");
+    description.style.flex = "1";
+    description.textContent = timer.label + ": " +
+      Math.max(0, Math.ceil((timer.end - Date.now()) / 1000)) + " seconds left";
+
+    const cancel = document.createElement("button");
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => {
+      clearTimeout(timer.handle);
+      timerList = timerList.filter(t => t.id !== timer.id);
+      renderTimers();
+      say("Timer cancelled.");
+    });
+
+    row.append(description, cancel);
+    timersBox.appendChild(row);
+  });
+}
+
+function startTimer(minutes, label = "Timer") {
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
+    say("Please choose a timer between 1 minute and 24 hours.");
+    return;
+  }
+
+  const id = nextTimerId++;
+  const timer = {
+    id,
+    label: label || "Timer",
+    end: Date.now() + minutes * 60000,
+    handle: null
+  };
+
+  timer.handle = setTimeout(() => {
+    timerList = timerList.filter(t => t.id !== id);
+    renderTimers();
+    say("Your timer is finished: " + timer.label + ".");
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Nova timer", { body: timer.label + " is finished." });
+    }
+  }, minutes * 60000);
+
+  timerList.push(timer);
+  renderTimers();
+  say("Timer set for " + minutes + " minute" +
+    (minutes === 1 ? "" : "s") + ".");
+}
+
+$("timerForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const minutes = Number($("minutes").value);
+  const label = $("timerLabel").value.trim() || "Timer";
+  $("minutes").value = "";
+  $("timerLabel").value = "";
+  startTimer(minutes, label);
+});
+
+function handleCommand(raw) {
+  const text = raw.trim().toLowerCase();
+  if (!text) return;
+
+  addMessage(raw, "user");
+
+  // Open the Phone Link setup page for Android pairing.
+  if (/connect to my phone|connect my phone|pair my phone|connect to my android/i.test(text)) {
+    say("Opening Phone Link setup. On your Android phone, open Link to Windows, or install it from Google Play if needed. Follow the instructions on both devices and approve the pairing request.");
+    window.open("https://aka.ms/yourphone", "_blank");
+    return;
+  }
+
+  if (pendingAction) {
+    const action = pendingAction;
+    pendingAction = null;
+
+    if (/^(yes|yeah|yep|sure|okay|ok|do it|confirm)\b/.test(text)) {
+      action();
+      say("Opening it now.");
+    } else {
+      say("Okay, I cancelled that.");
+    }
+    return;
+  }
+
+  if (/\b(stop listening|go to sleep|cancel listening)\b/.test(text)) {
+    stopListening();
+    say("Okay. I'll stop listening.");
+    return;
+  }
+
+  if (/^(hello|hi|hey nova)\b/.test(text)) {
+    say("Hello! What can I help you with?");
+    return;
+  }
+
+  if (/what time is it|tell me the time|current time/.test(text)) {
+    say("It's " + new Date().toLocaleTimeString([], {
+      hour: "numeric", minute: "2-digit"
+    }) + ".");
+    return;
+  }
+
+  if (/what('s| is) the date|what day is it|today('s| is) date/.test(text)) {
+    say("Today is " + new Date().toLocaleDateString(undefined, {
+      weekday: "long", year: "numeric", month: "long", day: "numeric"
+    }) + ".");
+    return;
+  }
+
+  const timerMatch = text.match(
+    /(?:set|start|create)\s+(?:a\s+)?timer\s+(?:for\s+)?(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)/
+  );
+
+  if (timerMatch) {
+    let amount = Number(timerMatch[1]);
+    const unit = timerMatch[2];
+    if (/^sec/.test(unit)) amount = Math.max(1, Math.ceil(amount / 60));
+    else if (/^hour|^hr/.test(unit)) amount *= 60;
+    startTimer(amount, "Voice timer");
+    return;
+  }
+
+  if (/open youtube/.test(text)) {
+    askBeforeOpening("https://www.youtube.com/", "YouTube");
+    return;
+  }
+  if (/open google/.test(text)) {
+    askBeforeOpening("https://www.google.com/", "Google");
+    return;
+  }
+  if (/open wikipedia/.test(text)) {
+    askBeforeOpening("https://www.wikipedia.org/", "Wikipedia");
+    return;
+  }
+  if (/open chatgpt|talk to chatgpt/.test(text)) {
+    askBeforeOpening("https://chatgpt.com/", "ChatGPT");
+    return;
+  }
+
+  if (/what can you do|help me|commands/.test(text)) {
+    say("I can tell you the time and date, set timers, open supported websites with your permission, help you start phone pairing, and speak replies. General intelligent answers require a connected AI service.");
+    return;
+  }
+
+  say("I heard you say: " + raw +
+    ". I don't have a real AI brain connected yet. You can open ChatGPT for an intelligent answer.");
+}
+
+$("chatForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const text = $("message").value.trim();
+  $("message").value = "";
+  if (text) handleCommand(text);
+});
+
+$("chatgpt").addEventListener("click", () => {
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+});
+
+$("voiceToggle").addEventListener("click", () => {
+  voiceEnabled = !voiceEnabled;
+  $("voiceToggle").textContent = voiceEnabled ? "🔊 Voice on" : "🔇 Voice off";
+  if (!voiceEnabled && "speechSynthesis" in window) {
+    speechSynthesis.cancel();
+    orb.classList.remove("speaking");
+  }
+});
+
+function stopListening() {
+  listening = false;
+  recognitionRestartAllowed = false;
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+  }
+  orb.classList.remove("listening");
+  $("listen").textContent = "🎙️ Start Listening";
+  $("activateNova").textContent = "✨ Activate Nova & Listen";
+  statusBox.textContent = "Nova is ready 💜";
+}
+
+function startListening() {
+  if (!recognition) {
+    statusBox.textContent = "Voice recognition is not supported in this browser. Try Microsoft Edge or Chrome.";
+    return;
+  }
+  if (listening) {
+    statusBox.textContent = "Nova is already listening.";
+    return;
+  }
+
+  listening = true;
+  recognitionRestartAllowed = true;
+  statusBox.textContent = "Starting microphone…";
+
+  try {
+    recognition.start();
+  } catch (e) {
+    listening = false;
+    recognitionRestartAllowed = false;
+    statusBox.textContent = "Couldn't start listening. Try again or check microphone permission.";
+  }
+}
+
+const SpeechRecognitionAPI =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognitionAPI) {
+  recognition = new SpeechRecognitionAPI();
+  recognition.lang = "en-US";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    listening = true;
+    orb.classList.add("listening");
+    $("listen").textContent = "🟢 Listening";
+    $("activateNova").textContent = "🟢 Nova Is Listening";
+    statusBox.textContent = "Say “Hey Nova” followed by a command.";
+  };
+
+  recognition.onresult = event => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (!event.results[i].isFinal) continue;
+
+      const transcript = event.results[i][0].transcript.trim();
+      const lower = transcript.toLowerCase();
+      const wakeIndex = lower.indexOf("hey nova");
+
+      if (wakeIndex >= 0) {
+        const command = transcript.slice(wakeIndex + "hey nova".length).trim();
+        if (command) {
+          handleCommand(command);
+        } else {
+          say("I'm listening. What do you need?");
+        }
+      } else if (pendingAction) {
+        handleCommand(transcript);
+      } else {
+        statusBox.textContent = "Waiting for “Hey Nova”…";
+      }
+    }
+  };
+
+  recognition.onerror = event => {
+    statusBox.textContent = "Voice recognition: " + event.error;
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      listening = false;
+      recognitionRestartAllowed = false;
+      $("activateNova").textContent = "✨ Activate Nova & Listen";
+    }
+  };
+
+  recognition.onend = () => {
+    orb.classList.remove("listening");
+    if (listening && recognitionRestartAllowed) {
+      setTimeout(() => {
+        if (!listening || !recognitionRestartAllowed) return;
+        try { recognition.start(); } catch (e) {}
+      }, 500);
+    } else {
+      $("listen").textContent = "🎙️ Start Listening";
+      $("activateNova").textContent = "✨ Activate Nova & Listen";
+      if (!listening) statusBox.textContent = "Nova is ready 💜";
+    }
+  };
+} else {
+  $("listen").disabled = true;
+  $("activateNova").disabled = true;
+  statusBox.textContent =
+    "Voice recognition isn't supported here. Try a current version of Microsoft Edge or Chrome.";
+}
+
+$("activateNova").addEventListener("click", startListening);
+
+$("listen").addEventListener("click", () => {
+  if (listening) {
+    stopListening();
+  } else {
+    startListening();
+  }
+});
+
+$("stop").addEventListener("click", stopListening);
+
+// Optional secure AI backend. Never put provider API keys in this page.
+$("saveBackend").addEventListener("click", () => {
+  const value = $("backend").value.trim();
+
+  if (!value) {
+    backendURL = "";
+    $("aiStatus").textContent = "No AI backend configured.";
+    say("AI connection removed.");
+    return;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") {
+      say("For safety, the AI endpoint must use HTTPS.");
+      return;
+    }
+    backendURL = url.href;
+    $("aiStatus").textContent =
+      "Endpoint entered. It must accept POST JSON with a message and return JSON containing a reply.";
+    say("Endpoint saved for this page session.");
+  } catch (e) {
+    say("That endpoint URL doesn't look valid.");
+  }
+});
+
+$("askAI").addEventListener("click", async () => {
+  const question = $("message").value.trim();
+  if (!question) {
+    say("Type your question in the message box first.");
+    return;
+  }
+
+  if (!backendURL) {
+    say("No secure AI backend is configured. I'll open ChatGPT instead.");
+    window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  addMessage(question, "user");
+  $("message").value = "";
+  $("aiStatus").textContent = "Contacting your configured backend…";
+
+  try {
+    const response = await fetch(backendURL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: question })
+    });
+
+    if (!response.ok) throw new Error("Backend returned HTTP " + response.status);
+
+    const data = await response.json();
+    if (typeof data.reply !== "string") {
+      throw new Error("Backend response needs a string named reply");
+    }
+
+    $("aiStatus").textContent = "AI response received.";
+    say(data.reply);
+  } catch (error) {
+    $("aiStatus").textContent =
+      "Connection failed. Check your backend, HTTPS, and CORS settings.";
+    say("I couldn't reach the AI service. You can open ChatGPT instead.");
+  }
+});
+
+// Update timer countdowns while the page remains open.
+setInterval(renderTimers, 1000);
+</script>
+</body>
+</html>
